@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- Excel template for bulk user upload — Agent Guide §4.2.
+     Columns: username | role | departmentCode | firstName | lastName
+-->
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <Styles>
+  <Style ss:ID="Default" ss:Name="Normal">
+   <Font ss:FontName="Calibri" x:CharSet="0" ss:Size="11" ss:Color="#000000"/>
+   <Alignment ss:Horizontal="Automatic" ss:Vertical="Center" ss:ReadingOrder="2"/>
+  </Style>
+  <Style ss:ID="Header">
+   <Font ss:FontName="Calibri" x:CharSet="0" ss:Size="11" ss:Color="#FFFFFF" ss:Bold="1"/>
+   <Interior ss:Color="#4472C4" ss:Pattern="Solid"/>
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:ReadingOrder="2"/>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="Users">
+  <Table ss:ExpandedColumnCount="5" ss:ExpandedRowCount="3" x:FullColumns="1" x:FullRows="1">
+   <Column ss:Index="1" ss:Width="120"/>
+   <Column ss:Index="2" ss:Width="120"/>
+   <Column ss:Index="3" ss:Width="120"/>
+   <Column ss:Index="4" ss:Width="120"/>
+   <Column ss:Index="5" ss:Width="120"/>
+   <Row ss:StyleID="Header">
+    <Cell><Data ss:Type="String">username</Data></Cell>
+    <Cell><Data ss:Type="String">role</Data></Cell>
+    <Cell><Data ss:Type="String">departmentCode</Data></Cell>
+    <Cell><Data ss:Type="String">firstName</Data></Cell>
+    <Cell><Data ss:Type="String">lastName</Data></Cell>
+   </Row>
+   <Row>
+    <Cell><Data ss:Type="String">99012345</Data></Cell>
+    <Cell><Data ss:Type="String">STUDENT</Data></Cell>
+    <Cell><Data ss:Type="String">CS</Data></Cell>
+    <Cell><Data ss:Type="String">علی</Data></Cell>
+    <Cell><Data ss:Type="String">محمدی</Data></Cell>
+   </Row>
+   <Row>
+    <Cell><Data ss:Type="String">P001</Data></Cell>
+    <Cell><Data ss:Type="String">PROFESSOR</Data></Cell>
+    <Cell><Data ss:Type="String">CS</Data></Cell>
+    <Cell><Data ss:Type="String">مریم</Data></Cell>
+    <Cell><Data ss:Type="String">حسینی</Data></Cell>
+   </Row>
+  </Table>
+ </Worksheet>
+</Workbook>

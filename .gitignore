@@ -1,0 +1,77 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# Testing
+coverage/
+*.lcov
+.nyc_output
+
+# Next.js
+.next/
+out/
+build/
+dist/
+
+# Production
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Prisma
+apps/api/prisma/migrations/dev/
+
+# Storage (local file storage - never commit user files)
+storage/resources/*
+storage/tickets/*
+storage/forms/*
+storage/curricula/*
+storage/logos/*
+!storage/**/.gitkeep
+
+# Logs
+logs/
+*.log
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Cache
+.cache/
+.turbo/
+.parcel-cache/
+
+# Docker
+*.tmp
+
+# Generated password files (contains credentials)
+scripts/generated-*
+*.passwords.xlsx
+
+# OS
+.Trashes
+.AppleDouble
+.LSOverride
+
+# TS Build info
+*.tsbuildinfo
+next-env.d.ts

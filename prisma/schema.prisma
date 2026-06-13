@@ -1,0 +1,679 @@
+// prisma/schema.prisma
+// Unify Platform — Database Schema v1.0
+// Source of truth: Agent Guide PART 4 + Golden Doc Appendix C
+// Generated for PostgreSQL 16
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearchPostgres"]
+}
+
+datasource db {
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  // Agent Guide §F.6: pool sized for 10k concurrent users.
+  // Override with DATABASE_URL params: ?connection_limit=50&pool_timeout=20
+  // (Prisma reads these from the URL automatically)
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum Role {
+  STUDENT
+  PROFESSOR
+  EXPERT
+  HEAD_OF_DEPARTMENT
+  SYSTEM_ADMIN
+  SYSTEM_OWNER
+}
+
+enum Phase {
+  ENROLLMENT
+  ACTIVE
+  EXAM
+}
+
+enum AcademicStatus {
+  NORMAL
+  CONDITIONAL
+  GPA_A
+  FINAL_SEMESTER
+}
+
+enum FileType {
+  PDF
+  DOCX
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum BadgeType {
+  PROFESSOR_BADGE
+  GENERAL_BADGE
+}
+
+enum TicketDepartment {
+  EDUCATION
+  TECHNICAL
+  STUDENT_AFFAIRS
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  ANSWERED
+  CLOSED
+}
+
+enum AuditActionType {
+  USER_CREATED
+  USER_BANNED
+  USER_UNBANNED
+  ROLE_CHANGED
+  PASSWORD_RESET
+  SPECIFICATION_DELETED
+  SPECIFICATION_EDITED
+  FILE_DELETED
+  FILE_VERSION_UPLOADED
+  PHASE_CHANGED
+  SEMESTER_CHANGED
+  FILE_REJECTED
+  LOGIN
+  LOGOUT
+}
+
+enum ExamType {
+  FINAL
+  MIDTERM
+}
+
+enum Day {
+  SATURDAY
+  SUNDAY
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+}
+
+enum NotificationType {
+  CRITICAL_ALERT
+  INFO
+  REMINDER
+  MESSAGE
+}
+
+enum MessageSource {
+  PROFESSOR_BROADCAST
+  PROFESSOR_DIRECT
+  EXPERT_TARGETED
+  ADMIN_TARGETED
+  SYSTEM
+  STUDENT_REPLY
+}
+
+// ============================================================
+// CORE USER & AUTH
+// ============================================================
+
+model User {
+  id                 String   @id @default(uuid())
+  username           String   @unique
+  passwordHash       String
+  role               Role
+  isActive           Boolean  @default(true)
+  onboardingComplete Boolean  @default(false)
+  firstName          String?
+  lastName           String?
+  // Golden Doc §1.2.5: Mobile Number (optional, free-text) + Email (optional, free-text)
+  mobileNumber       String?
+  emailAddress       String?
+  themePreference    String   @default("default")
+  darkMode           Boolean  @default(false)
+  supplementaryInfo  String?
+  academicStatus     AcademicStatus @default(NORMAL)
+  declaredAt         DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  lastLoginAt        DateTime?
+
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  // Relations
+  enrollments         Enrollment[]
+  uploadedFiles       ResourceFile[]         @relation("uploader")
+  professorFiles      ResourceFile[]         @relation("professor")
+  ratings             Rating[]
+  stickyNotes         StickyNote[]
+  sentMessages        Message[]              @relation("sender")
+  receivedMessages    MessageRecipient[]
+  tickets             Ticket[]               @relation("student")
+  ticketReplies       TicketReply[]
+  auditLogsActed      AuditLog[]             @relation("actor")
+  approvedFiles       ResourceFile[]         @relation("approver")
+  assignmentTasks     AssignmentTask[]
+  notifPreferences    NotificationPreference[]
+  passwordResetTokens PasswordResetRequest[]
+  specifications      CourseSpecification[]  @relation("professorSpec")
+  cancelledNotices    CancelledSpecificationNotice[]  @relation("cancelledNoticeStudent")
+  uploadedCurricula   CurriculumChart[]      @relation("curriculumUploader")
+  approvedCurricula   CurriculumChart[]      @relation("curriculumApprover")
+  uploadedForms       AdministrativeForm[]   @relation("formUploader")
+  createdCalendar     AcademicCalendarEvent[]
+  sentTicketReplies   TicketReply[]          @relation("ticketReplySender")
+  createdNotices      NoticeBoard[]          @relation("noticeCreator")
+  createdFAQs         CourseFAQ[]            @relation("faqCreator")
+  cancelledNotices    CancelledSpecificationNotice[] @relation("cancelledNoticeStudent")
+  resourceDownloads   ResourceDownload[]            @relation("userResourceDownloads")
+  courseAssignments   AssignmentTask[]              @relation("courseAssignments")
+
+  @@index([username])
+  @@index([role])
+  @@index([departmentId])
+}
+
+model PasswordResetRequest {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  performedBy String
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ============================================================
+// ACADEMIC STRUCTURE
+// ============================================================
+
+model Department {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  code      String   @unique
+  createdAt DateTime @default(now())
+
+  users     User[]
+  courses   Course[]
+  curricula CurriculumChart[]
+  forms     AdministrativeForm[]
+
+  @@index([code])
+}
+
+model Course {
+  id           String     @id @default(uuid())
+  code         String     @unique
+  name         String
+  credits      Int
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  specifications    CourseSpecification[]
+  resourceFiles     ResourceFile[]
+  prerequisites     CourseRelationship[]      @relation("course")
+  isPrerequisiteOf  CourseRelationship[]      @relation("prerequisite")
+  corequisites      CorequisiteRelationship[] @relation("courseA")
+  isCorequisiteOf   CorequisiteRelationship[] @relation("courseB")
+  assignments       AssignmentTask[]           @relation("courseAssignments")
+
+  @@index([departmentId])
+  @@index([code])
+}
+
+model CourseRelationship {
+  id             String  @id @default(uuid())
+  courseId       String
+  prerequisiteId String
+  course         Course  @relation("course", fields: [courseId], references: [id])
+  prerequisite   Course  @relation("prerequisite", fields: [prerequisiteId], references: [id])
+
+  @@unique([courseId, prerequisiteId])
+  @@index([courseId])
+}
+
+model CorequisiteRelationship {
+  id       String @id @default(uuid())
+  courseAId String
+  courseBId String
+  courseA   Course @relation("courseA", fields: [courseAId], references: [id])
+  courseB   Course @relation("courseB", fields: [courseBId], references: [id])
+
+  @@unique([courseAId, courseBId])
+}
+
+model Semester {
+  id              String    @id @default(uuid())
+  name            String    @unique
+  startDate       DateTime
+  endDate         DateTime
+  isCurrent       Boolean   @default(false)
+  currentPhase    Phase     @default(ENROLLMENT)
+  phaseSwitchedAt DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+
+  specifications CourseSpecification[]
+
+  @@index([isCurrent])
+}
+
+model CourseSpecification {
+  id                 String   @id @default(uuid())
+  courseId           String
+  course             Course   @relation(fields: [courseId], references: [id])
+  professorId        String
+  professor          User     @relation("professorSpec", fields: [professorId], references: [id])
+  semesterId         String
+  semester           Semester @relation(fields: [semesterId], references: [id])
+
+  classDays          Day[]
+  classStartTime     String
+  classEndTime       String
+  classroomLocation  String
+
+  telegramLink       String?
+
+  finalExamDate      DateTime?
+  finalExamTime      String?
+  finalExamLocation  String?
+  midtermExamDate    DateTime?
+  midtermExamTime    String?
+  midtermExamLocation String?
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  enrollments       Enrollment[]
+  messages          Message[]
+  notifPreferences  NotificationPreference[]
+
+  @@index([courseId])
+  @@index([professorId])
+  @@index([semesterId])
+}
+
+model Enrollment {
+  id              String              @id @default(uuid())
+  studentId       String
+  student         User                @relation(fields: [studentId], references: [id])
+  specificationId String
+  specification   CourseSpecification @relation(fields: [specificationId], references: [id])
+  isTemporary     Boolean             @default(true)
+  cardColor       String              @default("#6366f1")
+  enrolledAt      DateTime            @default(now())
+
+  @@unique([studentId, specificationId])
+  @@index([studentId])
+  @@index([specificationId])
+  @@index([isTemporary])
+}
+
+// ============================================================
+// RESOURCE DOWNLOAD TRACKING (Golden Doc §3.6.5 — Download Metrics)
+// ============================================================
+
+model ResourceDownload {
+  id             String       @id @default(uuid())
+  resourceFileId String
+  resourceFile   ResourceFile @relation(fields: [resourceFileId], references: [id], onDelete: Cascade)
+  studentId      String?
+  student        User?        @relation(fields: [studentId], references: [id])
+  ipAddress      String?
+  userAgent      String?
+  downloadedAt   DateTime     @default(now())
+
+  @@index([resourceFileId, downloadedAt])
+  @@index([studentId])
+  @@index([downloadedAt])
+}
+
+// ============================================================
+// RESOURCE HUB
+// ============================================================
+
+model ResourceFile {
+  id             String         @id @default(uuid())
+  courseId       String
+  course         Course         @relation(fields: [courseId], references: [id])
+  professorId    String
+  professor      User           @relation("professor", fields: [professorId], references: [id])
+
+  title          String
+  description    String?
+  filePath       String
+  fileType       FileType
+  fileSizeBytes  Int
+  versionNumber  Int            @default(1)
+
+  uploadedById   String
+  uploadedBy     User           @relation("uploader", fields: [uploadedById], references: [id])
+  uploaderRole   Role
+
+  approvalStatus ApprovalStatus @default(PENDING)
+  approvedById   String?
+  approvedBy     User?          @relation("approver", fields: [approvedById], references: [id])
+  badgeType      BadgeType?
+  approvedAt     DateTime?
+
+  averageRating  Float          @default(0.0)
+  ratingCount    Int            @default(0)
+
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  ratings        Rating[]
+  stickyNotes    StickyNote[]
+  downloads      ResourceDownload[]
+
+  @@index([courseId, professorId])
+  @@index([approvalStatus])
+}
+
+model Rating {
+  id             String       @id @default(uuid())
+  resourceFileId String
+  resourceFile   ResourceFile @relation(fields: [resourceFileId], references: [id], onDelete: Cascade)
+  studentId      String
+  student        User         @relation(fields: [studentId], references: [id])
+  stars          Int
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([resourceFileId, studentId])
+  @@index([resourceFileId])
+}
+
+model StickyNote {
+  id             String       @id @default(uuid())
+  resourceFileId String
+  resourceFile   ResourceFile @relation(fields: [resourceFileId], references: [id], onDelete: Cascade)
+  studentId      String
+  student        User         @relation(fields: [studentId], references: [id])
+  noteText       String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([resourceFileId, studentId])
+  @@index([resourceFileId])
+}
+
+// ============================================================
+// MESSAGING
+// ============================================================
+
+model Message {
+  id              String              @id @default(uuid())
+  senderId        String
+  sender          User                @relation("sender", fields: [senderId], references: [id])
+  content         String
+  isEdited        Boolean             @default(false)
+  editedAt        DateTime?
+  source          MessageSource       @default(SYSTEM)
+
+  specificationId String?
+  specification   CourseSpecification? @relation(fields: [specificationId], references: [id])
+
+  parentMessageId String?
+  parentMessage   Message?             @relation("thread", fields: [parentMessageId], references: [id])
+  replies         Message[]            @relation("thread")
+
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  recipients      MessageRecipient[]
+
+  @@index([senderId])
+  @@index([specificationId])
+  @@index([parentMessageId])
+  @@index([createdAt])
+}
+
+model MessageRecipient {
+  id          String   @id @default(uuid())
+  messageId   String
+  message     Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  recipientId String
+  recipient   User     @relation(fields: [recipientId], references: [id])
+  isRead      Boolean  @default(false)
+  readAt      DateTime?
+  createdAt   DateTime @default(now())
+
+  @@unique([messageId, recipientId])
+  @@index([recipientId, isRead])
+}
+
+// ============================================================
+// TICKETING
+// ============================================================
+
+model Ticket {
+  id          String           @id @default(uuid())
+  studentId   String
+  student     User             @relation("student", fields: [studentId], references: [id])
+  department  TicketDepartment
+  content     String
+  imageUrls   String[]         @default([])
+  status      TicketStatus     @default(OPEN)
+  isEscalated Boolean          @default(false)
+  escalatedAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  replies     TicketReply[]
+
+  @@index([studentId])
+  @@index([status])
+  @@index([isEscalated])
+  @@index([department])
+}
+
+model TicketReply {
+  id            String   @id @default(uuid())
+  ticketId      String
+  ticket        Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  senderId      String
+  sender        User     @relation("ticketReplySender", fields: [senderId], references: [id])
+  content       String
+  attachmentUrl String?
+  createdAt     DateTime @default(now())
+
+  @@index([ticketId])
+}
+
+// ============================================================
+// CURRICULUM & UTILITIES
+// ============================================================
+
+model CurriculumChart {
+  id           String     @id @default(uuid())
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+  entryYear    Int
+  chartData    Json
+  isPublished  Boolean    @default(false)
+  uploadedById String
+  uploadedBy   User       @relation("curriculumUploader", fields: [uploadedById], references: [id])
+  approvedById String?
+  approvedBy   User?      @relation("curriculumApprover", fields: [approvedById], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([departmentId, entryYear])
+  @@index([departmentId])
+}
+
+model AdministrativeForm {
+  id            String      @id @default(uuid())
+  departmentId  String?
+  department    Department? @relation(fields: [departmentId], references: [id])
+  name          String
+  description   String
+  signatureGuide String
+  filePath      String
+  uploadedById  String
+  uploadedBy    User        @relation("formUploader", fields: [uploadedById], references: [id])
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([departmentId])
+}
+
+model AcademicCalendarEvent {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  eventDate   DateTime
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([eventDate])
+}
+
+model AssignmentTask {
+  id              String   @id @default(uuid())
+  studentId       String
+  student         User     @relation(fields: [studentId], references: [id])
+  title           String
+  taskType        String
+  // Golden Doc §2.6.4: Course (optional) — null for general assignments
+  courseId        String?
+  course          Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  courseNote      String?
+  dueDateShamsi   String
+  dueDateUtc      DateTime
+  reminderEnabled Boolean  @default(false)
+  reminderSent    Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  @@index([studentId])
+  @@index([dueDateUtc])
+  @@index([reminderEnabled, reminderSent])
+  @@index([courseId])
+}
+
+model NotificationPreference {
+  id              String              @id @default(uuid())
+  studentId       String
+  student         User                @relation(fields: [studentId], references: [id])
+  specificationId String
+  specification   CourseSpecification @relation(fields: [specificationId], references: [id])
+  isMuted         Boolean             @default(false)
+
+  @@unique([studentId, specificationId])
+}
+
+model DailyUploadQuota {
+  id          String   @id @default(uuid())
+  studentId   String
+  date        String   // "YYYY-MM-DD" UTC date
+  uploadCount Int      @default(0)
+
+  @@unique([studentId, date])
+  @@index([studentId, date])
+}
+
+// ============================================================
+// AUDIT LOG
+// ============================================================
+
+model AuditLog {
+  id               String          @id @default(uuid())
+  timestampUtc     DateTime        @default(now())
+  timestampShamsi  String
+  actorId          String
+  actor            User            @relation("actor", fields: [actorId], references: [id])
+  actorRole        Role
+  actionType       AuditActionType
+  targetEntityType String
+  targetEntityId   String
+  beforeState      Json?
+  afterState       Json?
+  context          Json?
+
+  @@index([actorId])
+  @@index([actionType])
+  @@index([timestampUtc])
+  @@index([targetEntityType, targetEntityId])
+}
+
+// ============================================================
+// NOTICE BOARD & FAQ
+// ============================================================
+
+model NoticeBoard {
+  id          String   @id @default(uuid())
+  professorId String
+  professor   User     @relation("noticeCreator", fields: [professorId], references: [id])
+  courseId    String
+  title       String
+  content     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([professorId, courseId])
+}
+
+model CourseFAQ {
+  id          String   @id @default(uuid())
+  professorId String
+  professor   User     @relation("faqCreator", fields: [professorId], references: [id])
+  courseId    String
+  question    String
+  answer      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([professorId, courseId])
+}
+
+// ============================================================
+// CANCELLED SPECIFICATION NOTICES (Agent Guide Decision 5)
+// ============================================================
+// When an Expert deletes a CourseSpecification, a 7-day notice is created
+// for each enrolled student. The notice appears as a banner on the
+// student dashboard. A daily cleanup job removes notices older than 7 days.
+
+model CancelledSpecificationNotice {
+  id                String   @id @default(uuid())
+  studentId         String
+  student           User     @relation("cancelledNoticeStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  specificationId   String   // Original spec ID (no FK — spec is hard-deleted)
+  courseCode        String
+  courseName        String
+  professorName     String
+  semesterName      String
+  credits           Int
+  deletedByUserId   String
+  deletedAt         DateTime @default(now())
+  expiresAt         DateTime // deletedAt + 7 days
+
+  @@index([studentId, expiresAt])
+  @@index([expiresAt])
+}
+
+// ============================================================
+// PERSISTENT NOTIFICATIONS (Inbox system messages)
+// ============================================================
+
+model PersistentNotification {
+  id           String           @id @default(uuid())
+  recipientId  String
+  type         NotificationType
+  title        String
+  body         String
+  data         Json?
+  isRead       Boolean          @default(false)
+  readAt       DateTime?
+  createdAt    DateTime         @default(now())
+
+  @@index([recipientId, isRead])
+  @@index([createdAt])
+}

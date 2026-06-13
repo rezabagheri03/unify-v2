@@ -23,35 +23,19 @@ import { toPersianDigits } from '@/lib/shamsi-utils';
 export default function AdminFilesPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
+  const [browseCourseId, setBrowseCourseId] = useState('');
+  const [browseProfessorId, setBrowseProfessorId] = useState('');
 
-/**
- * Admin file management (Golden Doc §3.5.8):
- * - Upload new version for any professor's file
- * - Hard delete any professor's file
- * - Search across all files
- */
-export default function AdminFilesPage() {
-  const qc = useQueryClient();
-  const [search, setSearch] = useState('');
-
-  // Reuse the pending queue endpoint to list all published files for the admin
   const { data: pending } = useQuery({
     queryKey: ['admin-files-all'],
     queryFn: async () => (await apiClient.get('/pending')).data.data.files,
   });
 
-  // Calculate "fallback candidates" — files pending > 7 days
   const FALLBACK_DAYS = 7;
   const fallbackCandidates = (pending || []).filter((f: any) => {
     const ageDays = (Date.now() - new Date(f.createdAt).getTime()) / (24 * 60 * 60 * 1000);
     return ageDays >= FALLBACK_DAYS;
   });
-
-  // For listing all approved files, we use the /resources endpoint per (courseId, professorId)
-  // pair. Since we don't have a flat "all files" endpoint, we expose a simple course picker
-  // view that admins can drill into.
-  const [browseCourseId, setBrowseCourseId] = useState<string>('');
-  const [browseProfessorId, setBrowseProfessorId] = useState<string>('');
 
   const { data: files } = useQuery({
     queryKey: ['admin-files', browseCourseId, browseProfessorId],
